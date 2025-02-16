@@ -4,7 +4,11 @@ const fetch = require('node-fetch');
 const db = require('./db');
 const feedUrls = require('./feedUrls'); // Objeto: { channelName: feedURL, ... }
 
-const parser = new Parser();
+const parser = new Parser({
+    customFields: {
+      item: ['media:content', 'media:thumbnail', 'media:credit']
+    }
+  });
 
 async function updateRSS() {
   const currentTimestamp = Date.now();
