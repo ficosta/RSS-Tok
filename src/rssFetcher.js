@@ -61,7 +61,7 @@ async function updateRSS() {
         const translation_job = res.rows[0].translation_job;
         if (!translation_job || Object.keys(translation_job).length === 0) {
           try {
-            const response = await fetch('http://localhost:3002/job_translate', {
+            const response = await fetch('https://rss-tok.onrender.com/job_translate', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
