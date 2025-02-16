@@ -8,6 +8,8 @@ const app = express();
 app.use(express.json());
 app.use(compression());
 
+app.use(cors());
+
 app.get('/api/rss/:channel', async (req, res) => {
   try {
     const channel = req.params.channel;
