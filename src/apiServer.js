@@ -1,20 +1,27 @@
 // src/apiServer.js
 const express = require('express');
+const compression = require('compression');
 const db = require('./db');
-const app = express();
 require('dotenv').config();
 
+const app = express();
 app.use(express.json());
+app.use(compression());
 
 app.get('/api/rss/:channel', async (req, res) => {
   try {
     const channel = req.params.channel;
-    // Exemplo: consulta simples. Se você tiver a tabela item_channels, poderá fazer um JOIN.
+
+    // Consulta com JOIN: retorna somente itens que estão visíveis para o canal solicitado.
     const result = await db.query(
-      `SELECT * FROM items
-       WHERE (categories->>0 IS NOT NULL) -- exemplo simples; ajuste para filtrar por canal se necessário
-       ORDER BY pubTimestamp DESC`
+      `SELECT i.*
+       FROM items i
+       INNER JOIN item_channels ic ON i.item_id = ic.item_id
+       WHERE ic.channel = $1 AND ic.is_visible = 1
+       ORDER BY i.pubTimestamp DESC`,
+      [channel]
     );
+    
     res.json({ items: result.rows });
   } catch (err) {
     console.error(err);
@@ -22,5 +29,5 @@ app.get('/api/rss/:channel', async (req, res) => {
   }
 });
 
-const PORT = process.env.PORT || 3002;
+const PORT = process.env.PORT_API || 3001;
 app.listen(PORT, () => console.log(`API Server running on port ${PORT}`));

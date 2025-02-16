@@ -2,7 +2,7 @@
 const Parser = require('rss-parser');
 const fetch = require('node-fetch');
 const db = require('./db');
-const feedUrls = require('./feedUrls'); // Um objeto: { channelName: feedURL, ... }
+const feedUrls = require('./feedUrls'); // Objeto: { channelName: feedURL, ... }
 
 const parser = new Parser();
 
@@ -14,8 +14,11 @@ async function updateRSS() {
     console.log(`Processando canal: ${channel} - URL: ${feedUrl}`);
     try {
       const feed = await parser.parseURL(feedUrl);
+      const currentIds = []; // Lista de IDs encontrados no feed para esse canal
+
       for (const item of feed.items) {
         const item_id = item.guid || item.link || item.title;
+        currentIds.push(item_id);
         const pubTimestamp = new Date(item.pubDate.replace("CET", "GMT+0100")).getTime();
         // Insere ou atualiza o item na tabela items
         await db.query(
@@ -46,19 +49,19 @@ async function updateRSS() {
             currentTimestamp,
           ]
         );
-        // Atualiza a tabela item_channels
+        // Atualiza a tabela item_channels para marcar este item como visível para o canal
         await db.query(
           `INSERT INTO item_channels (item_id, channel, is_visible)
            VALUES ($1, $2, 1)
            ON CONFLICT (item_id, channel) DO UPDATE SET is_visible = 1`,
           [item_id, channel]
         );
-        // Verifica se o item já possui um job de tradução; se não, chama o endpoint /job_translate
+        // Chama o endpoint de tradução se ainda não houver um job registrado
         const res = await db.query(`SELECT translation_job FROM items WHERE item_id = $1`, [item_id]);
         const translation_job = res.rows[0].translation_job;
         if (!translation_job || Object.keys(translation_job).length === 0) {
           try {
-            const response = await fetch('http://localhost:3001/job_translate', {
+            const response = await fetch('http://localhost:3002/job_translate', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
@@ -79,6 +82,24 @@ async function updateRSS() {
             console.error(`Error calling /job_translate for item ${item_id}: `, err);
           }
         }
+      }
+      
+      // Agora, para o canal atual, atualize os registros que NÃO foram encontrados (marcando is_visible = 0)
+      if (currentIds.length > 0) {
+        await db.query(
+          `UPDATE item_channels 
+           SET is_visible = 0 
+           WHERE channel = $1 AND item_id NOT IN (${currentIds.map((_, i) => '$' + (i+2)).join(',')})`,
+          [channel, ...currentIds]
+        );
+      } else {
+        // Se nenhum item foi encontrado, marque todos os itens desse canal como não visíveis
+        await db.query(
+          `UPDATE item_channels 
+           SET is_visible = 0 
+           WHERE channel = $1`,
+          [channel]
+        );
       }
     } catch (err) {
       console.error(`Error processing feed for channel ${channel}: `, err);
