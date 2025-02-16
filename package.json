@@ -1,0 +1,32 @@
+{
+  "name": "rss-tok",
+  "version": "0.0.1",
+  "description": "Backend for RSS Tok",
+  "main": "server.js",
+  "scripts": {
+    "start:api": "node src/apiServer.js",
+    "start:rss": "node src/rssFetcher.js",
+    "start:job-translate": "node src/jobTranslate.js",
+    "start:poller": "node src/translationPoller.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ficosta/RSS-Tok.git"
+  },
+  "author": "Felipe Iasi",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/ficosta/RSS-Tok/issues"
+  },
+  "homepage": "https://github.com/ficosta/RSS-Tok#readme",
+  "dependencies": {
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2",
+    "openai": "^4.85.1",
+    "pg": "^8.13.3",
+    "rss-parser": "^3.13.0",
+    "sqlite": "^5.1.1",
+    "sqlite3": "^5.1.7"
+  }
+}
