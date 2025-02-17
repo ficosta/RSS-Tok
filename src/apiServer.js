@@ -1,6 +1,7 @@
 // src/apiServer.js
 const express = require('express');
 const compression = require('compression');
+const cors = require('cors');
 const db = require('./db');
 require('dotenv').config();
 
