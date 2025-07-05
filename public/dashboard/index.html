@@ -1,0 +1,669 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RSS-Tok Dashboard</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            color: #333;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        .header {
+            text-align: center;
+            color: white;
+            margin-bottom: 30px;
+        }
+
+        .header h1 {
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+        }
+
+        .last-update {
+            background: rgba(255, 255, 255, 0.2);
+            padding: 10px 20px;
+            border-radius: 20px;
+            display: inline-block;
+            margin-top: 10px;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        .stat-card {
+            background: white;
+            border-radius: 15px;
+            padding: 25px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+            transition: transform 0.3s ease;
+        }
+
+        .stat-card:hover {
+            transform: translateY(-5px);
+        }
+
+        .stat-header {
+            display: flex;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
+        .stat-icon {
+            font-size: 2rem;
+            margin-right: 15px;
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+        }
+
+        .stat-icon.rss { background: #ff6b35; }
+        .stat-icon.translation { background: #4ecdc4; }
+        .stat-icon.jobs { background: #ffe66d; color: #333; }
+        .stat-icon.health { background: #95e1d3; color: #333; }
+
+        .stat-title {
+            font-size: 1.2rem;
+            font-weight: 600;
+        }
+
+        .stat-value {
+            font-size: 2.5rem;
+            font-weight: bold;
+            margin-bottom: 10px;
+        }
+
+        .stat-description {
+            color: #666;
+            font-size: 0.9rem;
+        }
+
+        .progress-bar {
+            width: 100%;
+            height: 8px;
+            background: #e0e0e0;
+            border-radius: 4px;
+            margin: 10px 0;
+            overflow: hidden;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #4ecdc4, #44a08d);
+            border-radius: 4px;
+            transition: width 0.5s ease;
+        }
+
+        .channels-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 15px;
+            margin-bottom: 30px;
+        }
+
+        .channel-card {
+            background: white;
+            border-radius: 10px;
+            padding: 20px;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.08);
+        }
+
+        .channel-name {
+            font-weight: 600;
+            margin-bottom: 10px;
+            text-transform: capitalize;
+        }
+
+        .channel-stats {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 10px;
+        }
+
+        .channel-stat {
+            text-align: center;
+        }
+
+        .channel-stat-value {
+            font-size: 1.5rem;
+            font-weight: bold;
+            color: #4ecdc4;
+        }
+
+        .channel-stat-label {
+            font-size: 0.8rem;
+            color: #666;
+        }
+
+        .status-indicator {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            display: inline-block;
+            margin-right: 8px;
+        }
+
+        .status-online { background: #4caf50; }
+        .status-warning { background: #ff9800; }
+        .status-error { background: #f44336; }
+
+        .activity-log {
+            background: white;
+            border-radius: 15px;
+            padding: 25px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+            max-height: 400px;
+            overflow-y: auto;
+        }
+
+        .log-entry {
+            padding: 10px 0;
+            border-bottom: 1px solid #eee;
+            display: flex;
+            align-items: center;
+        }
+
+        .log-time {
+            color: #666;
+            font-size: 0.9rem;
+            margin-right: 15px;
+            min-width: 60px;
+        }
+
+        .log-message {
+            flex: 1;
+        }
+
+        .log-type {
+            padding: 3px 8px;
+            border-radius: 3px;
+            font-size: 0.8rem;
+            margin-right: 10px;
+        }
+
+        .log-type.info { background: #e3f2fd; color: #1976d2; }
+        .log-type.success { background: #e8f5e8; color: #388e3c; }
+        .log-type.warning { background: #fff3e0; color: #f57c00; }
+        .log-type.error { background: #ffebee; color: #d32f2f; }
+
+        .refresh-indicator {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: rgba(255, 255, 255, 0.9);
+            padding: 10px 15px;
+            border-radius: 20px;
+            font-size: 0.9rem;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+        }
+
+        .loading {
+            opacity: 0.7;
+            pointer-events: none;
+        }
+
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.5; }
+            100% { opacity: 1; }
+        }
+
+        .pulse {
+            animation: pulse 2s infinite;
+        }
+
+        .section-title {
+            color: white;
+            font-size: 1.5rem;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+        }
+
+        .section-title i {
+            margin-right: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1><i class="fas fa-rss"></i> RSS-Tok Dashboard</h1>
+            <p>Real-time monitoring of RSS feeds and translations</p>
+            <div class="last-update">
+                <i class="fas fa-clock"></i> Last updated: <span id="lastUpdate">-</span>
+            </div>
+        </div>
+
+        <div class="refresh-indicator">
+            <i class="fas fa-sync-alt" id="refreshIcon"></i>
+            <span id="refreshText">Auto-refresh: 30s</span>
+        </div>
+
+        <!-- Main Stats -->
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-header">
+                    <div class="stat-icon rss">
+                        <i class="fas fa-newspaper"></i>
+                    </div>
+                    <div class="stat-title">RSS Items</div>
+                </div>
+                <div class="stat-value" id="totalItems">-</div>
+                <div class="stat-description">Total items in database</div>
+            </div>
+
+            <div class="stat-card">
+                <div class="stat-header">
+                    <div class="stat-icon translation">
+                        <i class="fas fa-language"></i>
+                    </div>
+                    <div class="stat-title">Translations</div>
+                </div>
+                <div class="stat-value" id="translatedItems">-</div>
+                <div class="stat-description">Items with translations</div>
+                <div class="progress-bar">
+                    <div class="progress-fill" id="translationProgress" style="width: 0%"></div>
+                </div>
+                <div class="stat-description" id="translationPercentage">0% completed</div>
+            </div>
+
+            <div class="stat-card">
+                <div class="stat-header">
+                    <div class="stat-icon jobs">
+                        <i class="fas fa-cogs"></i>
+                    </div>
+                    <div class="stat-title">Translation Jobs</div>
+                </div>
+                <div class="stat-value" id="pendingJobs">-</div>
+                <div class="stat-description" id="jobsDescription">Jobs waiting for completion</div>
+            </div>
+
+            <div class="stat-card">
+                <div class="stat-header">
+                    <div class="stat-icon health">
+                        <i class="fas fa-heartbeat"></i>
+                    </div>
+                    <div class="stat-title">System Health</div>
+                </div>
+                <div class="stat-value">
+                    <span class="status-indicator" id="healthStatus"></span>
+                    <span id="healthText">-</span>
+                </div>
+                <div class="stat-description" id="healthDescription">Checking status...</div>
+            </div>
+        </div>
+
+        <!-- Channels Overview -->
+        <div class="section-title">
+            <i class="fas fa-broadcast-tower"></i>
+            RSS Channels
+        </div>
+        <div class="channels-grid" id="channelsGrid">
+            <!-- Channels will be populated here -->
+        </div>
+
+        <!-- OpenAI Metrics -->
+        <div class="section-title">
+            <i class="fas fa-robot"></i>
+            OpenAI Analytics
+        </div>
+        <div class="stats-grid" style="margin-bottom: 30px;">
+            <div class="stat-card">
+                <div class="stat-header">
+                    <div class="stat-icon" style="background: #ff6b6b;">
+                        <i class="fas fa-dollar-sign"></i>
+                    </div>
+                    <div class="stat-title">Cost Estimation</div>
+                </div>
+                <div class="stat-value" id="estimatedCost">$-</div>
+                <div class="stat-description" id="costBreakdown">Calculating costs...</div>
+            </div>
+
+            <div class="stat-card">
+                <div class="stat-header">
+                    <div class="stat-icon" style="background: #4ecdc4;">
+                        <i class="fas fa-chart-line"></i>
+                    </div>
+                    <div class="stat-title">Completion Rate</div>
+                </div>
+                <div class="stat-value" id="completionRate">-%</div>
+                <div class="stat-description" id="completionDetails">Processing requests...</div>
+            </div>
+
+            <div class="stat-card">
+                <div class="stat-header">
+                    <div class="stat-icon" style="background: #45b7d1;">
+                        <i class="fas fa-clock"></i>
+                    </div>
+                    <div class="stat-title">Avg Processing Time</div>
+                </div>
+                <div class="stat-value" id="avgProcessingTime">-</div>
+                <div class="stat-description" id="processingDetails">Measuring performance...</div>
+            </div>
+
+            <div class="stat-card">
+                <div class="stat-header">
+                    <div class="stat-icon" style="background: #96ceb4;">
+                        <i class="fas fa-cogs"></i>
+                    </div>
+                    <div class="stat-title">Model Configuration</div>
+                </div>
+                <div class="stat-value" id="modelName">-</div>
+                <div class="stat-description" id="modelConfig">Loading config...</div>
+            </div>
+        </div>
+
+        <!-- Detailed Metrics -->
+        <div class="section-title">
+            <i class="fas fa-chart-bar"></i>
+            Batch Job Status Distribution
+        </div>
+        <div class="stat-card" style="margin-bottom: 30px;">
+            <div id="statusDistribution">
+                <!-- Status distribution will be populated here -->
+            </div>
+        </div>
+
+        <!-- Activity Log -->
+        <div class="section-title">
+            <i class="fas fa-list"></i>
+            Recent Activity
+        </div>
+        <div class="activity-log">
+            <div id="activityLog">
+                <!-- Activity entries will be populated here -->
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let refreshInterval;
+        let activityLog = [];
+        const REFRESH_INTERVAL = 30000; // 30 seconds
+
+        // Initialize dashboard
+        document.addEventListener('DOMContentLoaded', function() {
+            loadDashboard();
+            startAutoRefresh();
+        });
+
+        function startAutoRefresh() {
+            refreshInterval = setInterval(() => {
+                loadDashboard();
+            }, REFRESH_INTERVAL);
+
+            // Update countdown
+            let seconds = 30;
+            setInterval(() => {
+                seconds--;
+                if (seconds <= 0) seconds = 30;
+                document.getElementById('refreshText').textContent = `Auto-refresh: ${seconds}s`;
+                
+                if (seconds === 30) {
+                    document.getElementById('refreshIcon').classList.add('pulse');
+                    setTimeout(() => {
+                        document.getElementById('refreshIcon').classList.remove('pulse');
+                    }, 1000);
+                }
+            }, 1000);
+        }
+
+        async function loadDashboard() {
+            try {
+                document.body.classList.add('loading');
+                
+                // Load all data in parallel
+                const [stats, health, channels] = await Promise.all([
+                    fetch('/api/rss/dashboard-stats').then(r => r.json()),
+                    fetch('/health').then(r => r.json()),
+                    fetch('/api/rss/channels').then(r => r.json())
+                ]);
+
+                updateStats(stats);
+                updateHealth(health);
+                updateChannels(channels);
+                updateLastUpdateTime();
+                
+                addActivityLog('info', 'Dashboard updated successfully');
+                
+            } catch (error) {
+                console.error('Error loading dashboard:', error);
+                addActivityLog('error', `Failed to load dashboard: ${error.message}`);
+            } finally {
+                document.body.classList.remove('loading');
+            }
+        }
+
+        function updateStats(response) {
+            if (response.success && response.data) {
+                const { rss, translation, openai } = response.data;
+                
+                document.getElementById('totalItems').textContent = rss.totalItems || 0;
+                document.getElementById('translatedItems').textContent = rss.itemsWithTranslations || 0;
+                document.getElementById('pendingJobs').textContent = rss.pendingTranslations || 0;
+                
+                const progress = Math.round(translation.translationProgress || 0);
+                document.getElementById('translationProgress').style.width = `${progress}%`;
+                document.getElementById('translationPercentage').textContent = `${progress}% completed`;
+                
+                // Update jobs description with OpenAI info
+                if (openai && openai.recentJobsSample && openai.recentJobsSample.length > 0) {
+                    const recentJob = openai.recentJobsSample[0];
+                    document.getElementById('jobsDescription').textContent = 
+                        `OpenAI status: ${recentJob.status} (${openai.totalProcessingJobs} total)`;
+                    
+                    // Add activity log for OpenAI jobs
+                    if (recentJob.status === 'completed') {
+                        addActivityLog('success', `OpenAI batch ${recentJob.batchId.substring(0, 20)}... completed`);
+                    } else if (recentJob.status === 'in_progress') {
+                        addActivityLog('info', `OpenAI batch ${recentJob.batchId.substring(0, 20)}... processing`);
+                    }
+
+                    // Update advanced OpenAI metrics
+                    updateOpenAIMetrics(openai);
+                } else if (openai && openai.error) {
+                    document.getElementById('jobsDescription').textContent = `OpenAI Error: ${openai.error}`;
+                    addActivityLog('error', `OpenAI API error: ${openai.error}`);
+                }
+            }
+        }
+
+        function updateOpenAIMetrics(openai) {
+            // Cost estimation
+            if (openai.costEstimation && openai.costEstimation.estimates) {
+                const cost = openai.costEstimation.estimates;
+                document.getElementById('estimatedCost').textContent = `$${cost.totalCost}`;
+                document.getElementById('costBreakdown').textContent = 
+                    `${cost.totalRequests} requests • Input: $${cost.inputCost} • Output: $${cost.outputCost}`;
+            }
+
+            // Completion rate
+            if (openai.allJobsMetrics && openai.allJobsMetrics.requestMetrics) {
+                const metrics = openai.allJobsMetrics.requestMetrics;
+                document.getElementById('completionRate').textContent = `${metrics.completionRate}%`;
+                document.getElementById('completionDetails').textContent = 
+                    `${metrics.completed}/${metrics.total} completed • ${metrics.failed} failed`;
+            }
+
+            // Processing time
+            if (openai.performance && openai.performance.processingTime) {
+                const perf = openai.performance.processingTime;
+                document.getElementById('avgProcessingTime').textContent = perf.formatted;
+                document.getElementById('processingDetails').textContent = 
+                    `Based on ${perf.samples} completed jobs • Wait: ${openai.performance.waitingTime?.formatted || 'N/A'}`;
+            }
+
+            // Model configuration
+            if (openai.configuration) {
+                const config = openai.configuration;
+                document.getElementById('modelName').textContent = config.model;
+                document.getElementById('modelConfig').textContent = 
+                    `Temp: ${config.temperature} • Max tokens: ${config.maxTokens} • Style: ${config.promptStyle}`;
+            }
+
+            // Status distribution
+            if (openai.allJobsMetrics && openai.allJobsMetrics.statusDistribution) {
+                updateStatusDistribution(openai.allJobsMetrics.statusDistribution);
+            }
+        }
+
+        function updateStatusDistribution(statusDist) {
+            const container = document.getElementById('statusDistribution');
+            const total = Object.values(statusDist).reduce((sum, count) => sum + count, 0);
+            
+            container.innerHTML = Object.entries(statusDist).map(([status, count]) => {
+                const percentage = Math.round((count / total) * 100);
+                const statusClass = getStatusClass(status);
+                
+                return `
+                    <div style="margin-bottom: 15px;">
+                        <div style="display: flex; justify-content: space-between; margin-bottom: 5px;">
+                            <span style="text-transform: capitalize; font-weight: 500;">${status}</span>
+                            <span>${count} jobs (${percentage}%)</span>
+                        </div>
+                        <div style="width: 100%; height: 8px; background: #e0e0e0; border-radius: 4px; overflow: hidden;">
+                            <div style="width: ${percentage}%; height: 100%; background: ${statusClass}; transition: width 0.5s ease;"></div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function getStatusClass(status) {
+            const statusColors = {
+                completed: '#4caf50',
+                in_progress: '#2196f3',
+                validating: '#ff9800',
+                finalizing: '#9c27b0',
+                failed: '#f44336',
+                cancelled: '#757575',
+                expired: '#795548',
+            };
+            return statusColors[status] || '#666';
+        }
+
+        function updateHealth(health) {
+            const statusElement = document.getElementById('healthStatus');
+            const textElement = document.getElementById('healthText');
+            const descElement = document.getElementById('healthDescription');
+            
+            if (health.status === 'healthy') {
+                statusElement.className = 'status-indicator status-online';
+                textElement.textContent = 'Healthy';
+                descElement.textContent = `Uptime: ${Math.round(health.uptime / 3600)}h`;
+            } else {
+                statusElement.className = 'status-indicator status-error';
+                textElement.textContent = 'Unhealthy';
+                descElement.textContent = health.error || 'System issues detected';
+            }
+        }
+
+        function updateChannels(response) {
+            const grid = document.getElementById('channelsGrid');
+            
+            if (response.success && response.data) {
+                grid.innerHTML = response.data.map(channel => `
+                    <div class="channel-card">
+                        <div class="channel-name">
+                            <span class="status-indicator status-online"></span>
+                            ${channel.channel}
+                        </div>
+                        <div class="channel-stats">
+                            <div class="channel-stat">
+                                <div class="channel-stat-value" id="items-${channel.channel}">-</div>
+                                <div class="channel-stat-label">Items</div>
+                            </div>
+                            <div class="channel-stat">
+                                <div class="channel-stat-value" id="translated-${channel.channel}">-</div>
+                                <div class="channel-stat-label">Translated</div>
+                            </div>
+                        </div>
+                    </div>
+                `).join('');
+
+                // Load individual channel stats
+                response.data.forEach(channel => {
+                    loadChannelStats(channel.channel);
+                });
+            }
+        }
+
+        async function loadChannelStats(channel) {
+            try {
+                const response = await fetch(`/api/rss/${channel}?limit=1000`);
+                const data = await response.json();
+                
+                if (data.success) {
+                    const items = data.data;
+                    const translated = items.filter(item => item.hasTranslation).length;
+                    
+                    document.getElementById(`items-${channel}`).textContent = data.pagination.total;
+                    document.getElementById(`translated-${channel}`).textContent = translated;
+                }
+            } catch (error) {
+                console.error(`Error loading stats for ${channel}:`, error);
+            }
+        }
+
+        function updateLastUpdateTime() {
+            document.getElementById('lastUpdate').textContent = new Date().toLocaleTimeString();
+        }
+
+        function addActivityLog(type, message) {
+            const time = new Date().toLocaleTimeString();
+            activityLog.unshift({ time, type, message });
+            
+            // Keep only last 20 entries
+            if (activityLog.length > 20) {
+                activityLog = activityLog.slice(0, 20);
+            }
+            
+            updateActivityLog();
+        }
+
+        function updateActivityLog() {
+            const logContainer = document.getElementById('activityLog');
+            logContainer.innerHTML = activityLog.map(entry => `
+                <div class="log-entry">
+                    <div class="log-time">${entry.time}</div>
+                    <div class="log-type ${entry.type}">${entry.type.toUpperCase()}</div>
+                    <div class="log-message">${entry.message}</div>
+                </div>
+            `).join('');
+        }
+
+        // Manual refresh button
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'F5' || (e.ctrlKey && e.key === 'r')) {
+                e.preventDefault();
+                loadDashboard();
+            }
+        });
+    </script>
+</body>
+</html>
