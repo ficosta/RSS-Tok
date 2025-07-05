@@ -137,3 +137,6 @@ dist
 
 # SvelteKit build / generate output
 .svelte-kit
+
+# OpenAI batch processing files
+batch_*.jsonl
