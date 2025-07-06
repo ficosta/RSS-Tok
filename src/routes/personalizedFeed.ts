@@ -13,26 +13,28 @@ const itemRepository = new ItemRepository();
  * - limit: number of items to return (default: 50)
  * - offset: pagination offset (default: 0)
  */
-router.get('/personalized', async (req: Request, res: Response) => {
+router.get('/personalized', async (req: Request, res: Response): Promise<void> => {
   try {
     const pinnedCategories = req.query.pinnedCategories as string;
     const limit = parseInt(req.query.limit as string) || 50;
     const offset = parseInt(req.query.offset as string) || 0;
 
     if (!pinnedCategories) {
-      return res.status(400).json({
+      res.status(400).json({
         success: false,
         error: 'pinnedCategories parameter is required'
       });
+      return;
     }
 
     const categoryArray = pinnedCategories.split(',').filter(cat => cat.trim());
     
     if (categoryArray.length === 0) {
-      return res.status(400).json({
+      res.status(400).json({
         success: false,
         error: 'At least one pinned category is required'
       });
+      return;
     }
 
     logger.info(`Creating personalized feed for categories: ${categoryArray.join(', ')}`);
