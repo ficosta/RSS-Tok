@@ -1,12 +1,14 @@
 import { DataSource } from 'typeorm';
 import { Item } from '@/models/Item';
 import { ItemChannel } from '@/models/ItemChannel';
+import { UserSession } from '@/models/UserSession';
+import { SessionView } from '@/models/SessionView';
 
 export const AppDataSource = new DataSource({
   type: 'postgres',
   url: process.env.DATABASE_URL!,
   ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
-  entities: [Item, ItemChannel],
+  entities: [Item, ItemChannel, UserSession, SessionView],
   migrations: ['src/migrations/*.ts'],
   synchronize: process.env.NODE_ENV === 'development',
   logging: process.env.NODE_ENV === 'development',

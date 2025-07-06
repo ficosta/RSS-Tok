@@ -175,4 +175,229 @@ export class ItemRepository {
       .andWhere('channel.isVisible = true')
       .getCount();
   }
+
+  async getMetrics(period: string, granularity: string): Promise<any> {
+    const now = new Date();
+    let startDate: Date;
+    let timeFormat: string;
+    let groupByFormat: string;
+
+    // Calculate start date based on period
+    switch (period) {
+      case 'day':
+        startDate = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+        break;
+      case 'week':
+        startDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+        break;
+      case 'month':
+        startDate = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+        break;
+      default:
+        startDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+    }
+
+    // Set time format based on granularity
+    switch (granularity) {
+      case 'minute':
+        timeFormat = 'YYYY-MM-DD HH24:MI';
+        groupByFormat = "to_char(to_timestamp(item.\"pubTimestamp\" / 1000), 'YYYY-MM-DD HH24:MI')";
+        break;
+      case 'hour':
+        timeFormat = 'YYYY-MM-DD HH24';
+        groupByFormat = "to_char(to_timestamp(item.\"pubTimestamp\" / 1000), 'YYYY-MM-DD HH24')";
+        break;
+      case 'day':
+        timeFormat = 'YYYY-MM-DD';
+        groupByFormat = "to_char(to_timestamp(item.\"pubTimestamp\" / 1000), 'YYYY-MM-DD')";
+        break;
+      default:
+        timeFormat = 'YYYY-MM-DD HH24';
+        groupByFormat = "to_char(to_timestamp(item.\"pubTimestamp\" / 1000), 'YYYY-MM-DD HH24')";
+    }
+
+    const startTimestamp = startDate.getTime();
+
+    // Get time series data for all channels
+    const timeSeriesQuery = `
+      SELECT 
+        ${groupByFormat} as time_bucket,
+        channel.channel,
+        COUNT(item."itemId") as count
+      FROM items item
+      INNER JOIN item_channels channel ON item."itemId" = channel."itemId"
+      WHERE item."pubTimestamp" >= $1
+        AND channel."isVisible" = true
+      GROUP BY time_bucket, channel.channel
+      ORDER BY time_bucket ASC, channel.channel ASC
+    `;
+
+    const result = await this.repository.query(timeSeriesQuery, [startTimestamp]);
+
+    // Get all unique channels
+    const channels = [...new Set(result.map((row: any) => row.channel))];
+    
+    // Get all unique time buckets
+    const timeBuckets = [...new Set(result.map((row: any) => row.time_bucket))];
+
+    // Create time series data structure
+    const timeSeriesData = {
+      labels: timeBuckets,
+      datasets: channels.map(channel => {
+        const channelData = timeBuckets.map(bucket => {
+          const dataPoint = result.find((row: any) => 
+            row.time_bucket === bucket && row.channel === channel
+          );
+          return dataPoint ? parseInt(dataPoint.count) : 0;
+        });
+
+        return {
+          label: String(channel),
+          data: channelData,
+          backgroundColor: this.getChannelColor(String(channel)),
+          borderColor: this.getChannelColor(String(channel)),
+          fill: false,
+        };
+      })
+    };
+
+    return {
+      timeSeries: timeSeriesData,
+      period,
+      granularity,
+      totalItems: result.reduce((sum: number, row: any) => sum + parseInt(row.count), 0),
+      startDate: startDate.toISOString(),
+      endDate: now.toISOString(),
+    };
+  }
+
+  async getChannelMetrics(): Promise<any> {
+    const channelStatsQuery = `
+      SELECT 
+        channel.channel,
+        COUNT(item."itemId") as total_items,
+        COUNT(CASE WHEN channel."isVisible" = true THEN 1 END) as visible_items,
+        COUNT(CASE WHEN item.translations != '{}' THEN 1 END) as translated_items,
+        COUNT(CASE WHEN item."translationJob"->>'status' = 'processing' THEN 1 END) as pending_translations,
+        MAX(item."pubTimestamp") as latest_item_timestamp,
+        MIN(item."pubTimestamp") as oldest_item_timestamp
+      FROM items item
+      INNER JOIN item_channels channel ON item."itemId" = channel."itemId"
+      GROUP BY channel.channel
+      ORDER BY total_items DESC
+    `;
+
+    const result = await this.repository.query(channelStatsQuery);
+
+    return result.map((row: any) => ({
+      channel: row.channel,
+      totalItems: parseInt(row.total_items),
+      visibleItems: parseInt(row.visible_items),
+      translatedItems: parseInt(row.translated_items),
+      pendingTranslations: parseInt(row.pending_translations),
+      translationPercentage: row.total_items > 0 
+        ? Math.round((parseInt(row.translated_items) / parseInt(row.total_items)) * 100)
+        : 0,
+      latestItemTimestamp: row.latest_item_timestamp ? parseInt(row.latest_item_timestamp) : null,
+      oldestItemTimestamp: row.oldest_item_timestamp ? parseInt(row.oldest_item_timestamp) : null,
+      color: this.getChannelColor(row.channel),
+    }));
+  }
+
+  async getHomeContentWithExclusions(options: {
+    beforeTimestamp?: number;
+    limit: number;
+    excludeItemIds: string[];
+  }): Promise<Item[]> {
+    const { beforeTimestamp, limit, excludeItemIds } = options;
+    
+    let query = this.repository
+      .createQueryBuilder('item')
+      .innerJoin('item.channels', 'channel')
+      .where('channel.isVisible = true');
+
+    if (beforeTimestamp !== undefined) {
+      query = query.andWhere('item.pubTimestamp < :beforeTimestamp', { beforeTimestamp });
+    }
+
+    if (excludeItemIds.length > 0) {
+      query = query.andWhere('item.itemId NOT IN (:...excludeItemIds)', { excludeItemIds });
+    }
+
+    return query
+      .orderBy('item.pubTimestamp', 'DESC')
+      .take(limit)
+      .getMany();
+  }
+
+  async getChannelContentWithExclusions(options: {
+    channelId: string;
+    beforeTimestamp?: number;
+    limit: number;
+    excludeItemIds: string[];
+  }): Promise<Item[]> {
+    const { channelId, beforeTimestamp, limit, excludeItemIds } = options;
+    
+    let query = this.repository
+      .createQueryBuilder('item')
+      .innerJoin('item.channels', 'channel')
+      .where('channel.channel = :channelId', { channelId })
+      .andWhere('channel.isVisible = true');
+
+    if (beforeTimestamp !== undefined) {
+      query = query.andWhere('item.pubTimestamp < :beforeTimestamp', { beforeTimestamp });
+    }
+
+    if (excludeItemIds.length > 0) {
+      query = query.andWhere('item.itemId NOT IN (:...excludeItemIds)', { excludeItemIds });
+    }
+
+    return query
+      .orderBy('item.pubTimestamp', 'DESC')
+      .take(limit)
+      .getMany();
+  }
+
+  async getChannelTotalCount(channelId: string): Promise<number> {
+    return this.repository
+      .createQueryBuilder('item')
+      .innerJoin('item.channels', 'channel')
+      .where('channel.channel = :channelId', { channelId })
+      .andWhere('channel.isVisible = true')
+      .getCount();
+  }
+
+  private getChannelColor(channel: string): string {
+    const colors = {
+      'homepage': '#FF6384',
+      'sport': '#36A2EB', 
+      'news': '#FFCE56',
+      'politik': '#4BC0C0',
+      'unterhaltung': '#9966FF',
+      'ratgeber': '#FF9F40',
+      'lifestyle': '#FF6B6B',
+      'auto': '#4ECDC4',
+      'digital': '#45B7D1',
+      'spiele': '#96CEB4',
+      'berlin': '#FECA57',
+      'hamburg': '#48CAE4',
+      'muenchen': '#F38BA8',
+      'koeln': '#A8DADC',
+      'leipzig': '#F1C0E8',
+      'dresden': '#CFBAF0',
+      'frankfurt': '#A3E4D7',
+      'stuttgart': '#FFD6A5',
+      'duesseldorf': '#FFAAA5',
+      'hannover': '#C7CEEA',
+      'bremen': '#B5EAD7',
+      'ruhrgebiet': '#FFB7B2',
+      'chemnitz': '#E2C2FF',
+      'saarland': '#87CEEB',
+      'leserreporter': '#DDA0DD',
+      'alle': '#98FB98',
+      'default': '#C9CBCF'
+    };
+    
+    return colors[channel as keyof typeof colors] || colors.default;
+  }
 }
