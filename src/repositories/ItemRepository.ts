@@ -367,6 +367,84 @@ export class ItemRepository {
       .getCount();
   }
 
+  async getTimelineData(startDate: Date, endDate: Date, granularity: string): Promise<any[]> {
+    let groupByFormat: string;
+    let dateFormat: string;
+
+    switch (granularity) {
+      case 'hour':
+        groupByFormat = "to_char(to_timestamp(item.\"pubTimestamp\" / 1000), 'YYYY-MM-DD HH24:00')";
+        dateFormat = 'YYYY-MM-DD HH24:00';
+        break;
+      case 'day':
+        groupByFormat = "to_char(to_timestamp(item.\"pubTimestamp\" / 1000), 'YYYY-MM-DD')";
+        dateFormat = 'YYYY-MM-DD';
+        break;
+      default:
+        groupByFormat = "to_char(to_timestamp(item.\"pubTimestamp\" / 1000), 'YYYY-MM-DD')";
+        dateFormat = 'YYYY-MM-DD';
+    }
+
+    const query = `
+      SELECT 
+        ${groupByFormat} as date,
+        COUNT(item."itemId") as count
+      FROM items item
+      INNER JOIN item_channels channel ON item."itemId" = channel."itemId"
+      WHERE item."pubTimestamp" >= $1 
+        AND item."pubTimestamp" <= $2
+        AND channel."isVisible" = true
+      GROUP BY ${groupByFormat}
+      ORDER BY date ASC
+    `;
+
+    const result = await this.repository.query(query, [
+      startDate.getTime(),
+      endDate.getTime()
+    ]);
+
+    return result.map((row: any) => ({
+      date: row.date,
+      count: parseInt(row.count)
+    }));
+  }
+
+  async getChannelData(startDate: Date, endDate: Date): Promise<any[]> {
+    const query = `
+      SELECT 
+        channel.channel,
+        COUNT(item."itemId") as total_items,
+        COUNT(CASE WHEN item.translations != '{}' THEN 1 END) as translated_items,
+        ROUND(
+          (COUNT(item."itemId")::decimal / 
+           (SELECT COUNT(*)::decimal FROM items i2 
+            INNER JOIN item_channels c2 ON i2."itemId" = c2."itemId" 
+            WHERE i2."pubTimestamp" >= $1 AND i2."pubTimestamp" <= $2 AND c2."isVisible" = true)
+          ) * 100, 2
+        ) as percentage
+      FROM items item
+      INNER JOIN item_channels channel ON item."itemId" = channel."itemId"
+      WHERE item."pubTimestamp" >= $1 
+        AND item."pubTimestamp" <= $2
+        AND channel."isVisible" = true
+      GROUP BY channel.channel
+      ORDER BY total_items DESC
+    `;
+
+    const result = await this.repository.query(query, [
+      startDate.getTime(),
+      endDate.getTime()
+    ]);
+
+    return result.map((row: any) => ({
+      channel: row.channel,
+      totalItems: parseInt(row.total_items),
+      translatedItems: parseInt(row.translated_items),
+      percentage: parseFloat(row.percentage),
+      color: this.getChannelColor(row.channel)
+    }));
+  }
+
   private getChannelColor(channel: string): string {
     const colors = {
       'homepage': '#FF6384',

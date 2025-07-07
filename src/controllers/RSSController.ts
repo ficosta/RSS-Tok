@@ -132,6 +132,35 @@ export class RSSController {
     res.json(response);
   });
 
+  getMetrics = asyncHandler(async (req: Request, res: Response) => {
+    const { period = '7d', granularity = 'day' } = req.query;
+    
+    const metrics = await this.rssService.getTimelineMetrics(
+      period as string,
+      granularity as string
+    );
+
+    const response: ApiResponse = {
+      success: true,
+      data: metrics,
+    };
+
+    res.json(response);
+  });
+
+  getChannelMetrics = asyncHandler(async (req: Request, res: Response) => {
+    const { period = '7d' } = req.query;
+    
+    const channelMetrics = await this.rssService.getChannelMetrics(period as string);
+
+    const response: ApiResponse = {
+      success: true,
+      data: channelMetrics,
+    };
+
+    res.json(response);
+  });
+
   getHealth = asyncHandler(async (req: Request, res: Response) => {
     const startTime = Date.now();
     

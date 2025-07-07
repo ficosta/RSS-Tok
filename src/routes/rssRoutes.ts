@@ -47,6 +47,8 @@ router.get('/channels', rssController.getChannels);
  */
 router.get('/stats', rssController.getStats);
 router.get('/dashboard-stats', rssController.getDashboardStats);
+router.get('/metrics', rssController.getMetrics);
+router.get('/channel-metrics', rssController.getChannelMetrics);
 
 /**
  * @swagger
