@@ -1857,6 +1857,23 @@
             }
         }
 
+        // Date formatting function for Berlin time (dd/mm/yyyy HH:MM)
+        function formatBerlinDateTime(timestamp) {
+            const date = new Date(parseInt(timestamp) || Date.now());
+            const berlinTime = new Intl.DateTimeFormat('de-DE', {
+                timeZone: 'Europe/Berlin',
+                day: '2-digit',
+                month: '2-digit',
+                year: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit',
+                hour12: false
+            }).format(date);
+            
+            // Format: dd/mm/yyyy, HH:MM -> dd/mm/yyyy HH:MM
+            return berlinTime.replace(', ', ' ');
+        }
+
         // Channel Modal Functions
         async function openChannelModal(channelId) {
             currentChannel = channelId;
@@ -1913,7 +1930,7 @@
                         <div class="article-title">${article.title || 'No title'}</div>
                         <div class="article-excerpt">${(article.content || '').substring(0, 200)}...</div>
                         <div class="article-meta">
-                            <span><i class="fas fa-calendar"></i> ${new Date(article.pubTimestamp || Date.now()).toLocaleDateString()}</span>
+                            <span><i class="fas fa-calendar"></i> ${formatBerlinDateTime(article.pubTimestamp)}</span>
                             <span><i class="fas fa-link"></i> <a href="${article.link}" target="_blank">Read more</a></span>
                         </div>
                     </div>
@@ -1970,7 +1987,7 @@
                 }
                 
                 // Load channel distribution
-                const channelsResponse = await fetch('/api/rss/channel-metrics');
+                const channelsResponse = await fetch(`/api/rss/channel-metrics?period=${timeRange}`);
                 const channelsData = await channelsResponse.json();
                 
                 if (channelsData.success) {
