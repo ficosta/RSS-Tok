@@ -13,6 +13,7 @@ import { swaggerSpec } from '@/config/swagger';
 import { requestLogger } from '@/middleware/requestLogger';
 import { errorHandler, notFoundHandler } from '@/middleware/errorHandler';
 import routes from '@/routes';
+import v2Routes from '@/routes/v2Routes';
 
 const app = express();
 
@@ -23,6 +24,7 @@ app.use(helmet({
       defaultSrc: ["'self'"],
       styleSrc: ["'self'", "'unsafe-inline'", "https://cdnjs.cloudflare.com"],
       scriptSrc: ["'self'", "'unsafe-inline'", "https://cdn.jsdelivr.net", "https://cdnjs.cloudflare.com"],
+      scriptSrcAttr: ["'unsafe-inline'"],
       fontSrc: ["'self'", "https://cdnjs.cloudflare.com"],
       connectSrc: ["'self'"]
     },
@@ -61,8 +63,9 @@ app.use(compression());
 // Request logging
 app.use(requestLogger);
 
-// Serve static files (dashboard)
+// Serve static files (dashboard and assets)
 app.use('/dashboard', express.static(path.join(process.cwd(), 'public/dashboard')));
+app.use(express.static(path.join(process.cwd(), 'public')));
 
 // API Documentation
 app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec, {
@@ -83,6 +86,7 @@ app.get('/health', (req, res) => {
 
 // API routes
 app.use('/api', routes);
+app.use('/api/v2', v2Routes);
 
 // Root endpoint
 app.get('/', (req, res) => {
