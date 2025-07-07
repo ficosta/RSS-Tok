@@ -1702,9 +1702,18 @@
                 
                 // Load all data in parallel
                 const [stats, health, channels] = await Promise.all([
-                    fetch('/api/rss/stats').then(r => r.json()),
-                    fetch('/health').then(r => r.json()),
-                    fetch('/api/rss/channels').then(r => r.json())
+                    fetch('/api/rss/stats').then(r => {
+                        if (!r.ok) throw new Error(`Stats API failed: ${r.status}`);
+                        return r.json();
+                    }),
+                    fetch('/health').then(r => {
+                        if (!r.ok) throw new Error(`Health API failed: ${r.status}`);
+                        return r.json();
+                    }),
+                    fetch('/api/rss/channels').then(r => {
+                        if (!r.ok) throw new Error(`Channels API failed: ${r.status}`);
+                        return r.json();
+                    })
                 ]);
 
                 updateStats(stats);
