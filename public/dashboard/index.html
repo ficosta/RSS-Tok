@@ -1702,7 +1702,7 @@
                 
                 // Load all data in parallel
                 const [stats, health, channels] = await Promise.all([
-                    fetch('/api/rss/dashboard-stats').then(r => r.json()),
+                    fetch('/api/rss/stats').then(r => r.json()),
                     fetch('/health').then(r => r.json()),
                     fetch('/api/rss/channels').then(r => r.json())
                 ]);
@@ -1744,16 +1744,16 @@
             if (response.success && response.data) {
                 const data = response.data;
                 
-                document.getElementById('totalItems').textContent = data.totalItems || 0;
-                document.getElementById('translatedItems').textContent = data.itemsWithTranslations || 0;
+                document.getElementById('totalItems').textContent = data.rss.totalItems || 0;
+                document.getElementById('translatedItems').textContent = data.rss.itemsWithTranslations || 0;
                 
                 // Calculate translation percentage
-                const percentage = data.totalItems > 0 
-                    ? Math.round((data.itemsWithTranslations / data.totalItems) * 100)
+                const percentage = data.rss.totalItems > 0 
+                    ? Math.round((data.rss.itemsWithTranslations / data.rss.totalItems) * 100)
                     : 0;
                     
                 document.getElementById('itemsChange').textContent = `${percentage}% translated`;
-                document.getElementById('translatedChange').textContent = `${data.itemsWithTranslations} completed`;
+                document.getElementById('translatedChange').textContent = `${data.rss.itemsWithTranslations} completed`;
             }
         }
 
