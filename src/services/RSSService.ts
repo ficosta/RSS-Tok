@@ -79,15 +79,19 @@ export class RSSService {
     
     if (item.pubDate) {
       try {
-        // Handle various date formats and fix timezone
-        const dateStr = item.pubDate.replace('CET', 'GMT+0100').replace('CEST', 'GMT+0200');
-        const parsedDate = new Date(dateStr);
+        // Handle CEST/CET timezone formats that JavaScript can't parse
+        let dateStr = item.pubDate;
+        if (dateStr.includes('CEST')) {
+          dateStr = dateStr.replace('CEST', 'GMT+0200');
+        } else if (dateStr.includes('CET')) {
+          dateStr = dateStr.replace('CET', 'GMT+0100');
+        }
         
-        // Validate the date and ensure it's not in the future beyond reasonable bounds
-        if (!isNaN(parsedDate.getTime()) && parsedDate.getTime() < Date.now() + 86400000) { // Not more than 1 day in future
+        const parsedDate = new Date(dateStr);
+        if (!isNaN(parsedDate.getTime())) {
           pubTimestamp = parsedDate.getTime();
         } else {
-          logger.warn(`Invalid or future date for item ${itemId}: ${item.pubDate}, using current time`);
+          logger.warn(`Failed to parse date for item ${itemId}: ${item.pubDate}, using current time`);
         }
       } catch (error) {
         logger.warn(`Failed to parse date for item ${itemId}: ${item.pubDate}, using current time`);
@@ -180,5 +184,58 @@ export class RSSService {
 
   async getStats(): Promise<any> {
     return this.itemRepository.getStats();
+  }
+
+  async getTimelineMetrics(period: string, granularity: string): Promise<any> {
+    const timeRange = this.getTimeRange(period);
+    const metrics = await this.itemRepository.getTimelineData(timeRange.start, timeRange.end, granularity);
+    
+    // Format data for Chart.js
+    return {
+      timeSeries: {
+        labels: metrics.map((m: any) => m.date),
+        datasets: [
+          {
+            label: 'Articles Published',
+            data: metrics.map((m: any) => m.count),
+            borderColor: '#3b82f6',
+            backgroundColor: 'rgba(59, 130, 246, 0.1)',
+            tension: 0.4,
+            fill: true
+          }
+        ]
+      }
+    };
+  }
+
+  async getChannelMetrics(period: string): Promise<any> {
+    const timeRange = this.getTimeRange(period);
+    const channelData = await this.itemRepository.getChannelData(timeRange.start, timeRange.end);
+    
+    return channelData;
+  }
+
+  private getTimeRange(period: string): { start: Date; end: Date } {
+    const end = new Date();
+    const start = new Date();
+    
+    switch (period) {
+      case '24h':
+        start.setHours(start.getHours() - 24);
+        break;
+      case '7d':
+        start.setDate(start.getDate() - 7);
+        break;
+      case '30d':
+        start.setDate(start.getDate() - 30);
+        break;
+      case '90d':
+        start.setDate(start.getDate() - 90);
+        break;
+      default:
+        start.setDate(start.getDate() - 7);
+    }
+    
+    return { start, end };
   }
 }
