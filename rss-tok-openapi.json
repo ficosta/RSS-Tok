@@ -1,0 +1,805 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "RSS-Tok API",
+    "description": "Modern RSS feed aggregation API with infinite scroll, session management, and multilingual translations",
+    "version": "2.0.0",
+    "contact": {
+      "name": "RSS-Tok API Support"
+    }
+  },
+  "servers": [
+    {
+      "url": "http://localhost:3000",
+      "description": "Local Development Server"
+    }
+  ],
+  "paths": {
+    "/api/v2/session/start": {
+      "post": {
+        "tags": ["Session Management"],
+        "summary": "Start a new session or reactivate existing one",
+        "description": "Creates a new user session for tracking viewed content and managing infinite scroll state",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "deviceFingerprint": {
+                    "type": "string",
+                    "description": "Optional device fingerprint for session identification",
+                    "example": "device-123-abc"
+                  },
+                  "existingSessionId": {
+                    "type": "string",
+                    "description": "Existing session ID to reactivate",
+                    "example": "550e8400-e29b-41d4-a716-446655440000"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Session created or reactivated successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "sessionId": {
+                      "type": "string",
+                      "format": "uuid",
+                      "example": "550e8400-e29b-41d4-a716-446655440000"
+                    },
+                    "expiresAt": {
+                      "type": "string",
+                      "format": "date-time",
+                      "example": "2025-07-07T10:30:00.000Z"
+                    },
+                    "isNew": {
+                      "type": "boolean",
+                      "example": true
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v2/session/{sessionId}/validate": {
+      "get": {
+        "tags": ["Session Management"],
+        "summary": "Validate session status",
+        "parameters": [
+          {
+            "name": "sessionId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "example": "550e8400-e29b-41d4-a716-446655440000"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Session validation result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "sessionId": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "isValid": {
+                      "type": "boolean"
+                    },
+                    "timestamp": {
+                      "type": "string",
+                      "format": "date-time"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v2/session/{sessionId}/activity": {
+      "put": {
+        "tags": ["Session Management"],
+        "summary": "Update session activity and extend expiration",
+        "parameters": [
+          {
+            "name": "sessionId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Session activity updated successfully"
+          },
+          "404": {
+            "description": "Session not found or expired"
+          }
+        }
+      }
+    },
+    "/api/v2/session/{sessionId}/views": {
+      "post": {
+        "tags": ["Session Management"],
+        "summary": "Mark items as viewed in current session",
+        "parameters": [
+          {
+            "name": "sessionId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "itemIds": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    },
+                    "example": ["item123", "item456"]
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Items marked as viewed successfully"
+          }
+        }
+      }
+    },
+    "/api/v2/content/home": {
+      "get": {
+        "tags": ["Content"],
+        "summary": "Get homepage content with infinite scroll support",
+        "description": "Returns mixed content from all channels with infinite scroll pagination",
+        "parameters": [
+          {
+            "name": "sessionId",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "example": "550e8400-e29b-41d4-a716-446655440000"
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "description": "Cursor for pagination (timestamp)",
+            "example": "1751879399000"
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20
+            },
+            "example": 20
+          },
+          {
+            "name": "maxConsecutive",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 10,
+              "default": 5
+            },
+            "description": "Maximum consecutive items from same channel"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Homepage content retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ContentBatch"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Session expired or invalid",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v2/content/channel/{channelId}": {
+      "get": {
+        "tags": ["Content"],
+        "summary": "Get channel-specific content with infinite scroll support",
+        "parameters": [
+          {
+            "name": "channelId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "alle", "homepage", "news", "politik", "unterhaltung", "sport", 
+                "lifestyle", "ratgeber", "auto", "digital", "spiele", "leserreporter",
+                "berlin", "chemnitz", "bremen", "dresden", "duesseldorf", "frankfurt",
+                "hamburg", "hannover", "koeln", "leipzig", "muenchen", "ruhrgebiet",
+                "saarland", "stuttgart"
+              ]
+            },
+            "example": "news"
+          },
+          {
+            "name": "sessionId",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "description": "Cursor for pagination (timestamp)"
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Channel content retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ContentBatch"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/rss/channels": {
+      "get": {
+        "tags": ["RSS Management"],
+        "summary": "Get all available RSS channels",
+        "responses": {
+          "200": {
+            "description": "List of available channels",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "channel": {
+                            "type": "string"
+                          },
+                          "url": {
+                            "type": "string",
+                            "format": "uri"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/rss/stats": {
+      "get": {
+        "tags": ["RSS Management"],
+        "summary": "Get RSS and translation statistics",
+        "responses": {
+          "200": {
+            "description": "Statistics data",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "rss": {
+                          "type": "object",
+                          "properties": {
+                            "totalItems": {
+                              "type": "integer"
+                            },
+                            "itemsWithTranslations": {
+                              "type": "integer"
+                            },
+                            "pendingTranslations": {
+                              "type": "integer"
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/rss/metrics": {
+      "get": {
+        "tags": ["Analytics"],
+        "summary": "Get timeline metrics for analytics dashboard",
+        "parameters": [
+          {
+            "name": "period",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": ["24h", "7d", "30d", "90d"],
+              "default": "7d"
+            },
+            "example": "7d"
+          },
+          {
+            "name": "granularity",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": ["hour", "day"],
+              "default": "day"
+            },
+            "example": "day"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Timeline metrics data",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "timeSeries": {
+                          "type": "object",
+                          "properties": {
+                            "labels": {
+                              "type": "array",
+                              "items": {
+                                "type": "string"
+                              }
+                            },
+                            "datasets": {
+                              "type": "array",
+                              "items": {
+                                "type": "object",
+                                "properties": {
+                                  "label": {
+                                    "type": "string"
+                                  },
+                                  "data": {
+                                    "type": "array",
+                                    "items": {
+                                      "type": "integer"
+                                    }
+                                  },
+                                  "borderColor": {
+                                    "type": "string"
+                                  },
+                                  "backgroundColor": {
+                                    "type": "string"
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/rss/channel-metrics": {
+      "get": {
+        "tags": ["Analytics"],
+        "summary": "Get channel distribution metrics",
+        "parameters": [
+          {
+            "name": "period",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": ["24h", "7d", "30d", "90d"],
+              "default": "7d"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Channel metrics data",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "channel": {
+                            "type": "string"
+                          },
+                          "totalItems": {
+                            "type": "integer"
+                          },
+                          "translatedItems": {
+                            "type": "integer"
+                          },
+                          "percentage": {
+                            "type": "number"
+                          },
+                          "color": {
+                            "type": "string"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/rss/refresh": {
+      "post": {
+        "tags": ["RSS Management"],
+        "summary": "Trigger RSS feed refresh",
+        "responses": {
+          "200": {
+            "description": "Refresh initiated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/health": {
+      "get": {
+        "tags": ["System"],
+        "summary": "Health check endpoint",
+        "responses": {
+          "200": {
+            "description": "System is healthy",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "string",
+                      "example": "healthy"
+                    },
+                    "timestamp": {
+                      "type": "string",
+                      "format": "date-time"
+                    },
+                    "uptime": {
+                      "type": "number"
+                    },
+                    "version": {
+                      "type": "string"
+                    },
+                    "database": {
+                      "type": "object",
+                      "properties": {
+                        "status": {
+                          "type": "string"
+                        },
+                        "responseTime": {
+                          "type": "number"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "ContentBatch": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RSSItem"
+            }
+          },
+          "nextCursor": {
+            "type": "string",
+            "nullable": true,
+            "description": "Cursor for next batch of content"
+          },
+          "hasMore": {
+            "type": "boolean",
+            "description": "Whether more content is available"
+          },
+          "cycleCount": {
+            "type": "integer",
+            "description": "Number of cycles through content (channel mode only)"
+          }
+        }
+      },
+      "RSSItem": {
+        "type": "object",
+        "properties": {
+          "itemId": {
+            "type": "string",
+            "example": "686b74c3d009353a0c96246f"
+          },
+          "title": {
+            "type": "string",
+            "example": "Trump watscht Musk ab - „Ichhalte es für lächerlich"
+          },
+          "content": {
+            "type": "string",
+            "example": "Trump kritisiert Musks Plan: Dritte Partei sei unnötig."
+          },
+          "link": {
+            "type": "string",
+            "format": "uri",
+            "example": "https://www.bild.de/news/example-article"
+          },
+          "pubDate": {
+            "type": "string",
+            "example": "Mon, 07 Jul 2025 11:10:28 CEST"
+          },
+          "pubTimestamp": {
+            "type": "string",
+            "example": "1751879428000"
+          },
+          "mediaContent": {
+            "type": "object",
+            "properties": {
+              "$": {
+                "type": "object",
+                "properties": {
+                  "url": {
+                    "type": "string",
+                    "format": "uri"
+                  },
+                  "type": {
+                    "type": "string"
+                  },
+                  "medium": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          },
+          "mediaThumbnail": {
+            "type": "object",
+            "properties": {
+              "$": {
+                "type": "object",
+                "properties": {
+                  "url": {
+                    "type": "string",
+                    "format": "uri"
+                  }
+                }
+              }
+            }
+          },
+          "categories": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "example": ["News", "Politik", "USA"]
+          },
+          "translations": {
+            "type": "object",
+            "properties": {
+              "en": {
+                "$ref": "#/components/schemas/Translation"
+              },
+              "pt": {
+                "$ref": "#/components/schemas/Translation"
+              },
+              "es": {
+                "$ref": "#/components/schemas/Translation"
+              },
+              "tr": {
+                "$ref": "#/components/schemas/Translation"
+              }
+            }
+          },
+          "translationJob": {
+            "type": "object",
+            "properties": {
+              "status": {
+                "type": "string",
+                "enum": ["processing", "completed", "failed"]
+              },
+              "batchId": {
+                "type": "string"
+              },
+              "completedAt": {
+                "type": "number"
+              },
+              "submittedAt": {
+                "type": "number"
+              },
+              "targetLanguages": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "Translation": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string"
+          },
+          "content": {
+            "type": "string"
+          }
+        }
+      },
+      "SessionError": {
+        "type": "object",
+        "properties": {
+          "error": {
+            "type": "string",
+            "example": "Session expired or invalid"
+          },
+          "message": {
+            "type": "string",
+            "example": "Please create a new session"
+          }
+        }
+      }
+    }
+  },
+  "tags": [
+    {
+      "name": "Session Management",
+      "description": "User session management for infinite scroll and content tracking"
+    },
+    {
+      "name": "Content",
+      "description": "RSS content retrieval with infinite scroll pagination"
+    },
+    {
+      "name": "RSS Management",
+      "description": "RSS feed management and information"
+    },
+    {
+      "name": "Analytics",
+      "description": "Analytics and metrics for the dashboard"
+    },
+    {
+      "name": "System",
+      "description": "System health and status endpoints"
+    }
+  ]
+}
