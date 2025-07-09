@@ -61,12 +61,45 @@ CREATE TABLE IF NOT EXISTS item_channels (
 );
 ```
 
+#### user_sessions (session management for infinite scroll)
+```sql
+CREATE TABLE IF NOT EXISTS user_sessions (
+  session_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  device_fingerprint TEXT,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  last_activity TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  expires_at TIMESTAMP DEFAULT (CURRENT_TIMESTAMP + INTERVAL '15 minutes'),
+  is_active BOOLEAN DEFAULT TRUE
+);
+```
+
+#### session_views (tracks viewed items per session)
+```sql
+CREATE TABLE IF NOT EXISTS session_views (
+  session_id UUID NOT NULL,
+  item_id TEXT NOT NULL,
+  viewed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (session_id, item_id),
+  FOREIGN KEY (session_id) REFERENCES user_sessions(session_id) ON DELETE CASCADE,
+  FOREIGN KEY (item_id) REFERENCES items("itemId") ON DELETE CASCADE
+);
+```
+
 #### Performance Indexes
 ```sql
+-- Items table indexes
 CREATE INDEX IF NOT EXISTS idx_items_pub_timestamp ON items(pub_timestamp DESC);
 CREATE INDEX IF NOT EXISTS idx_items_translation_status ON items((translation_job->>'status'));
+
+-- Item channels indexes
 CREATE INDEX IF NOT EXISTS idx_item_channels_channel_visible ON item_channels(channel, is_visible);
 CREATE INDEX IF NOT EXISTS idx_item_channels_item_id ON item_channels(item_id);
+
+-- Session management indexes
+CREATE INDEX IF NOT EXISTS idx_sessions_expires_at ON user_sessions(expires_at);
+CREATE INDEX IF NOT EXISTS idx_sessions_active ON user_sessions(is_active, expires_at);
+CREATE INDEX IF NOT EXISTS idx_session_views_session_id ON session_views(session_id);
+CREATE INDEX IF NOT EXISTS idx_session_views_item_lookup ON session_views(item_id, session_id);
 ```
 
 ## Development Commands
@@ -153,10 +186,24 @@ LOG_LEVEL=info
 - Jobs are managed by `JobManager` with proper error handling and logging
 
 ### API Endpoints
+
+#### v2 API (Recommended - with infinite scroll and session management)
+- `POST /api/v2/session/start` - Create new session for infinite scroll
+- `GET /api/v2/session/{sessionId}/validate` - Validate session status
+- `PUT /api/v2/session/{sessionId}/activity` - Update session activity (extends 15min expiration)
+- `POST /api/v2/session/{sessionId}/views` - Mark items as viewed
+- `GET /api/v2/content/home` - Get mixed homepage content with infinite scroll
+- `GET /api/v2/content/channel/{channelId}` - Get channel-specific content with infinite scroll
+
+#### v1 API (Legacy - basic pagination)
 - `GET /api/rss/channels` - List all available RSS channels
 - `GET /api/rss/:channel` - Get RSS items for specific channel (with pagination)
 - `GET /api/rss/stats` - Get system statistics
+- `GET /api/rss/metrics` - Get timeline metrics for analytics dashboard
+- `GET /api/rss/channel-metrics` - Get channel distribution metrics
 - `POST /api/rss/refresh` - Manually trigger RSS refresh
+
+#### System
 - `GET /health` - Health check endpoint
 - `GET /api-docs` - Swagger API documentation
 
@@ -173,6 +220,14 @@ LOG_LEVEL=info
 - Request/response logging with Winston
 - Input validation with Zod schemas
 - Comprehensive error handling
+
+### Session Management & Infinite Scroll
+- UUID-based session tracking for stateless API
+- 15-minute session expiration with automatic extension
+- Viewed items tracking to prevent duplicates
+- Cursor-based pagination for infinite scroll
+- Channel balancing for diverse content feeds
+- Automatic session cleanup of expired sessions
 
 ### Database Patterns
 - TypeORM with entities and repositories
@@ -202,11 +257,19 @@ LOG_LEVEL=info
 2. Review generated migration file
 3. Run migration: `npm run migration:run`
 
+### Working with Sessions (v2 API)
+1. **Create session**: `POST /api/v2/session/start`
+2. **Use session**: Include `sessionId` in query parameters
+3. **Extend session**: `PUT /api/v2/session/{sessionId}/activity`
+4. **Sessions expire**: After 15 minutes of inactivity
+5. **Session cleanup**: Automated cleanup runs periodically
+
 ### Testing Strategy
 - Unit tests for services and utilities
 - Integration tests for API endpoints
 - Mock external dependencies (OpenAI, RSS feeds)
 - Test database operations with test database
+- Session management testing for infinite scroll
 
 ## Monitoring and Observability
 - Structured logging with Winston
@@ -214,6 +277,84 @@ LOG_LEVEL=info
 - Error tracking with stack traces
 - Performance metrics in logs
 - Docker health checks for containers
+
+## Available RSS Channels
+
+### Content Channels
+- `alle` - All content (mixed feed)
+- `homepage` - Homepage content
+- `news` - General news
+- `politik` - Politics
+- `unterhaltung` - Entertainment
+- `sport` - Sports
+- `lifestyle` - Lifestyle
+- `ratgeber` - Advice/Tips
+- `auto` - Automotive
+- `digital` - Technology/Digital
+- `spiele` - Games
+- `leserreporter` - Reader reports
+
+### Regional Channels
+- `berlin` - Berlin regional news
+- `chemnitz` - Chemnitz regional news
+- `bremen` - Bremen regional news
+- `dresden` - Dresden regional news
+- `duesseldorf` - Düsseldorf regional news
+- `frankfurt` - Frankfurt regional news
+- `hamburg` - Hamburg regional news
+- `hannover` - Hannover regional news
+- `koeln` - Cologne regional news
+- `leipzig` - Leipzig regional news
+- `muenchen` - Munich regional news
+- `ruhrgebiet` - Ruhr area regional news
+- `saarland` - Saarland regional news
+- `stuttgart` - Stuttgart regional news
+
+## API Usage Examples
+
+### v2 API (Infinite Scroll - Recommended)
+
+```bash
+# 1. Create a session
+curl -X POST "http://localhost:3000/api/v2/session/start" \
+  -H "Content-Type: application/json" \
+  -d '{}'
+
+# Response: {"sessionId": "uuid", "expiresAt": "2025-07-07T...", "isNew": true}
+
+# 2. Get homepage content
+curl "http://localhost:3000/api/v2/content/home?sessionId=UUID&limit=20"
+
+# 3. Get channel-specific content
+curl "http://localhost:3000/api/v2/content/channel/news?sessionId=UUID&limit=20"
+
+# 4. Get more content with cursor (infinite scroll)
+curl "http://localhost:3000/api/v2/content/home?sessionId=UUID&limit=20&cursor=1751879399000"
+
+# 5. Mark items as viewed
+curl -X POST "http://localhost:3000/api/v2/session/UUID/views" \
+  -H "Content-Type: application/json" \
+  -d '{"itemIds": ["item1", "item2"]}'
+```
+
+### v1 API (Basic Pagination)
+
+```bash
+# Get available channels
+curl "http://localhost:3000/api/rss/channels"
+
+# Get channel content with pagination
+curl "http://localhost:3000/api/rss/news?page=1&limit=20"
+
+# Get analytics metrics
+curl "http://localhost:3000/api/rss/metrics?period=7d&granularity=day"
+
+# Get system statistics
+curl "http://localhost:3000/api/rss/stats"
+```
+
+### Date Format
+All dates in the API are displayed in Berlin time (CEST/CET) using the format: `dd/mm/yyyy HH:MM`
 
 ## Deployment Notes
 - Uses multi-stage Docker builds for optimization
